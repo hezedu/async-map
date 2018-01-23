@@ -1,25 +1,75 @@
 # async-map
-
+fallback
+race
+parallel
+sequence
 ```js
 var asyncMap = require('async-map');
-asyncMap.parallel({
-  a:'a',
+
+function task(end){
+    var t = setTimeout(end, 200);
+    return function abort(){
+      clearTimeout(t);
+    };
+}
+
+function end(err, result){
+
+}
+
+asyncMap
+  .sequence(['a', 'b', 'c'])
+  .end((err, result) => {
+    
+  });
+
+asyncMap
+  .race({
+    a: 'a',
+    b: 'b',
+    c: 'c'
+  }, 2)
+  .end((err, result) => {
+
+  });
+
+
+asyncMap.fallback({
+  a: 'a',
   b: 'b',
   c: 'c'
-}).group({
-  keys: ['a', 'b'],
-  success(){
-    
-  }
-}).group({
-  keys: ['b', 'c'],
-  success(){
+});
 
-  }
-})
-.success(){
+asyncMap
+  .parallel({
+    a:'a',
+    b: 'b',
+    c: 'c',
+    d: 'd'
+  })
+  .group({
+    keys: ['a', 'b'], 
+    success(){
+
+    }
+  })
+  .group({
+    keys: ['b', 'c'],
+    success(){
+
+    }
+  })
+  .options(['d', 'a'])
+  .end((err, result) => {
+
+  });
+
+// .success(){
       
-};
+// }
+// .error(){
+  
+// };
 
 
 var task = asyncMap({
