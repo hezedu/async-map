@@ -13,6 +13,8 @@ function task(end){
     };
 }
 
+
+
 function end(err, result){
 
 }
@@ -40,6 +42,21 @@ asyncMap.fallback({
   c: 'c'
 });
 
+
+asyncMap
+  .parallel({
+    a:'a',
+    b: 'b',
+    c: 'c',
+    d: 'd',
+    $group: [
+      {
+        keys: ['a', 'b'], 
+      },
+    ],
+    $options : ['d']
+  });
+
 asyncMap
   .parallel({
     a:'a',
@@ -60,10 +77,18 @@ asyncMap
     }
   })
   .options(['d', 'a'])
+  .transform2Task();
+
+  // (cb){
+  //   setTimeout(cb, 200);
+  // }
   .end((err, result) => {
 
   });
-
+function (cb){
+  p.end(cb);
+  return p.abort;
+}
 // .success(){
       
 // }
