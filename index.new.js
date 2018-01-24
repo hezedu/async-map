@@ -77,6 +77,7 @@ function parallel(opts){
   });
 }
 
+//====== test ======
 parallel({
   tasks: {
     fast(end){
