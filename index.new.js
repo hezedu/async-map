@@ -2,18 +2,27 @@ function noop(){};
 
 function parallel(opts){
   var tasks = opts.tasks,
-    groups = opts.groups,
+    groups = opts.groups || [],
     end = opts.end || noop,
     onAbort = opts.onAbort || noop;
-  
 
   
-  var keys = Object.keys(tasks),
-    len = keys.length,
+  var keys = Object.keys(tasks);
+  if(!keys.length){
+    return;
+  }
+  var len = keys.length,
     count = 0,
     runingTasks = {},
     isAbortAll = false;
 
+  var limit = opts.limit || len;
+  
+    keys.forEach(k => {
+      runingTasks[k] = {
+        eventOnEnd: []
+      };
+    })
 
 
   var abortAll = function(){
@@ -24,12 +33,24 @@ function parallel(opts){
     onAbort();
   };
 
+  var i = 0;
+  
+  function loop(){
+    
+    console.log('loop', i, i - count, limit);
+    if(i - count >= limit || i === len){
+      console.log('return', i)
+      return;
+    }
+    
 
-  keys.forEach(function(k){
+    var k = keys[i];
+
+    //console.log('loop', i, i - count, limit, k);
+
     var task = tasks[k];
-    var _task = runingTasks[k] = {
-      eventOnEnd: []
-    };
+    var _task = runingTasks[k];
+
     _task.abort = task(function(err, result){
       if(isAbortAll){
         return;
@@ -45,18 +66,59 @@ function parallel(opts){
         cb();
       })
       count = count + 1;
-      console.log('count', count);
-      if(count === len){
 
+      //console.log('count', count);
+      if(count === len){
+        
         const results = {};
         keys.forEach(k => {
           results[k] = runingTasks[k].result;
         })
         end(null, results);
 
+      }else{
+        loop();
+        
       }
     }) || noop;
-  })
+
+    i = i + 1;
+    loop();
+  }
+  loop();
+  // keys.forEach(function(k){
+  //   var task = tasks[k];
+  //   var _task = runingTasks[k] = {
+  //     eventOnEnd: []
+  //   };
+
+  //   _task.abort = task(function(err, result){
+  //     if(isAbortAll){
+  //       return;
+  //     }
+  //     if(err){
+  //       runingTasks[k] = null;
+  //       delete(runingTasks[k]);
+  //       end(err);
+  //       return abortAll();
+  //     }
+  //     _task.result = result;
+  //     _task.eventOnEnd.forEach(cb => {
+  //       cb();
+  //     })
+  //     count = count + 1;
+  //     console.log('count', count);
+  //     if(count === len){
+
+  //       const results = {};
+  //       keys.forEach(k => {
+  //         results[k] = runingTasks[k].result;
+  //       })
+  //       end(null, results);
+
+  //     }
+  //   }) || noop;
+  // })
 
   groups.forEach(group => {
     var keys = group.keys;
@@ -72,33 +134,52 @@ function parallel(opts){
     }
     keys.forEach(k => {
       var runingTask = runingTasks[k];
-      runingTask.eventOnEnd.push(done);
+      if(runingTask){
+        runingTask.eventOnEnd.push(done);
+      }
     })
   });
+
 }
 
+var tasks2 = {};
+for(let i = 0; i < 30; i++){
+  tasks2[i] = function(end){
+    setTimeout(function(){
+      console.log('task', i);
+      end();
+    }, 100 * i)
+  }
+}
+// arr.forEach((v, i) => {
+//   console.log('i', i);
+
+// })
+console.time('parallel')
 //====== test ======
 parallel({
-  tasks: {
-    fast(end){
-      setTimeout(function(){
-        console.log('fast');
-        end();
-      }, 100)
-    },
-    medium(end){
-      setTimeout(function(){
-        console.log('medium');
-        end();
-      }, 500)
-    },
-    slow(end){
-      setTimeout(function(){
-        console.log('slow');
-        end();
-      }, 1000)
-    }
-  },
+  tasks: tasks2,
+  // tasks: {
+  //   fast(end){
+  //     setTimeout(function(){
+  //       console.log('fast');
+  //       end();
+  //     }, 100)
+  //   },
+  //   medium(end){
+  //     setTimeout(function(){
+  //       console.log('medium');
+  //       end();
+  //     }, 500)
+  //   },
+  //   slow(end){
+  //     setTimeout(function(){
+  //       console.log('slow');
+  //       end();
+  //     }, 1000)
+  //   }
+  // },
+  limit: 9,
   groups: [
     {
       keys: ['fast', 'medium'],
@@ -114,6 +195,7 @@ parallel({
     }
   ],
   end(){
+    console.timeEnd('parallel')
     console.log('all end');
   }
 });
