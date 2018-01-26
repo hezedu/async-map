@@ -1,48 +1,240 @@
-var parallel = function(tasks){
+function noop(){};
 
+function parallel(opts){
+  var tasks = opts.tasks,
+    groups = opts.groups || [],
+    end = opts.end || noop,
+    onAbort = opts.onAbort || noop;
+
+  
   var keys = Object.keys(tasks);
-  var len = keys.length;
-  var count  = 0;
-  var result = {};
-  var tasksRuning = {};
+  if(!keys.length){
+    return;
+  }
+  var len = keys.length,
+    count = 0,
+    runingTasks = {},
+    isAbortAll = false;
 
-  for(let i = 0; i <len; i++){
+  var limit = opts.limit || len;
+  if(limit > len){
+    limit = len;
+  }
+  
+    keys.forEach(k => {
+      runingTasks[k] = {
+        eventOnEnd: []
+      };
+    })
+
+
+  var abortAll = function(){
+    Object.keys(runingTasks).forEach(k => {
+      runingTasks[k].abort();
+    })
+    isAbortAll = false;
+    onAbort();
+  };
+
+  var i = 0;
+  
+  function loop(){
+    
+    console.log('loop', i, i - count, count);
+    // if(i - count >= limit || i === len){
+    //   console.log('return', i)
+    //   return;
+    // }
+    
+
     var k = keys[i];
+
+    //console.log('loop', i, i - count, limit, k);
+
     var task = tasks[k];
-    var taskWrap = {};
+    var _task = runingTasks[k];
 
-    var abort = task(function(err, result){
-
-      delete(tasksRuning[k]);
-
-      if(err){
-        return result.abort();
+    _task.abort = task(function(err, result){
+      if(isAbortAll){
+        return;
       }
-      
+      if(err){
+        runingTasks[k] = null;
+        delete(runingTasks[k]);
+        end(err);
+        return abortAll();
+      }
+      _task.result = result;
+      _task.eventOnEnd.forEach(cb => {
+        cb();
+      })
       count = count + 1;
 
+      //console.log('count', count);
       if(count === len){
-        if(result.end){
-          result.end();
+        
+        const results = {};
+        keys.forEach(k => {
+          results[k] = runingTasks[k].result;
+        })
+        end(null, results);
+
+      }else{
+        if(i < len){
+          loop();
         }
       }
-    });
-    taskWrap.abort = abort;
-    tasksRuning[k] = taskWrap;
-  }
+    }) || noop;
 
-  result.abort = function(){
-    for(let i = 0; i <len; i++){
-      var k = keys[i];
-      if(tasksRuning[k]){
-        tasksRuning[k].abort();
+    i = i + 1;
+  }
+  for(let _i = 0 ; _i < limit; _i ++){
+    loop();
+  }
+  
+  // keys.forEach(function(k){
+  //   var task = tasks[k];
+  //   var _task = runingTasks[k] = {
+  //     eventOnEnd: []
+  //   };
+
+  //   _task.abort = task(function(err, result){
+  //     if(isAbortAll){
+  //       return;
+  //     }
+  //     if(err){
+  //       runingTasks[k] = null;
+  //       delete(runingTasks[k]);
+  //       end(err);
+  //       return abortAll();
+  //     }
+  //     _task.result = result;
+  //     _task.eventOnEnd.forEach(cb => {
+  //       cb();
+  //     })
+  //     count = count + 1;
+  //     console.log('count', count);
+  //     if(count === len){
+
+  //       const results = {};
+  //       keys.forEach(k => {
+  //         results[k] = runingTasks[k].result;
+  //       })
+  //       end(null, results);
+
+  //     }
+  //   }) || noop;
+  // })
+
+  groups.forEach(group => {
+    var keys = group.keys;
+    var len = keys.length;
+    var count = 0;
+    var end = group.end || noop;
+
+    function done(){
+      count = count + 1;
+      if(count === len){
+        end();
       }
     }
-  }
+    keys.forEach(k => {
+      var runingTask = runingTasks[k];
+      if(runingTask){
+        runingTask.eventOnEnd.push(done);
+      }
+    })
+  });
 
-  result.task = function(cb){
-
-  }
-
-  return result
 }
+
+var tasks2 = {};
+for(let i = 0; i < 30; i++){
+  tasks2[i] = function(end){
+    setTimeout(function(){
+      console.log('task', i);
+      end();
+    }, 100 * i)
+  }
+}
+// arr.forEach((v, i) => {
+//   console.log('i', i);
+
+// })
+console.time('parallel')
+//====== test ======
+parallel({
+  tasks: tasks2,
+  // tasks: {
+  //   fast(end){
+  //     setTimeout(function(){
+  //       console.log('fast');
+  //       end();
+  //     }, 100)
+  //   },
+  //   medium(end){
+  //     setTimeout(function(){
+  //       console.log('medium');
+  //       end();
+  //     }, 500)
+  //   },
+  //   slow(end){
+  //     setTimeout(function(){
+  //       console.log('slow');
+  //       end();
+  //     }, 1000)
+  //   }
+  // },
+  limit: 10,
+  groups: [
+    {
+      keys: ['fast', 'medium'],
+      end(){
+        console.log('fast emdium end');
+      }
+    },
+    {
+      keys: ['fast', 'slow'],
+      end(){
+        console.log('fast slow end');
+      }
+    }
+  ],
+  end(){
+    console.timeEnd('parallel')
+    console.log('all end');
+  }
+});
+
+// var parallel = function(tasks){
+
+//   var keys = Object.keys(tasks);
+//   var len = keys.length;
+//    count  = 0;
+//   var result = {}
+
+//   for(let i = 0; i <len; i++){
+//     var k = keys[i];
+//     var task = tasks[k];
+//     var abort = task(function(err, result){
+//       count = count + 1;
+//       if(count === len){
+//         if(result.end){
+//           result.end();
+//         }
+//       }
+//     });
+
+//     tasks[k].abort = abort;
+//   }
+//   result.abort = function(){
+//     for(let i = 0; i <len; i++){
+//       var k = keys[i];
+
+//     }
+//   }
+//   result.task = function(cb){
+
+//   }
+//   return result
+// }
