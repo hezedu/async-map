@@ -36,7 +36,9 @@ function parallel(opts){
   };
 
   var i = 0;
-  
+  var errCount = 0, successCount = 0;
+  var errs = {};
+  const results = {};
   function loop(){
 
     //console.log('loop', i, i - count, count);
@@ -59,35 +61,43 @@ function parallel(opts){
         return;
       }
       if(err){
-        _task.err = err;
+        errs[k] = err;
+        errCount = errCount + 1;
+      }else{
+        successCount = successCount + 1;
+        results[k] = result;
+        _task.eventOnEnd.forEach(cb => {
+          cb();
+        })
       }
 
-      _task.result = result;
-      _task.eventOnEnd.forEach(cb => {
-        cb();
-      })
       count = count + 1;
 
       onProcess({
         total: len,
         started: i,
-        ended: count
+        ended: count,
+        errored: errCount,
+        limit,
+        successed: successCount
       });
-      
+
       //console.log('count', count);
       if(count === len){
 
-        var errs = {};
-        const results = {};
-        keys.forEach(k => {
-          var v = runingTasks[k];
-          if(v.err){
-            errs[k] = v.err;
-          }else{
-            results[k] = v.result;
-          }
-        })
-        errs = Object.keys(errs).length === 0 ? null : errs;
+        // var errs = {};
+        // const results = {};
+        // keys.forEach(k => {
+        //   var v = runingTasks[k];
+        //   if(v.err){
+        //     errs[k] = v.err;
+        //   }else{
+        //     results[k] = v.result;
+        //   }
+        // })
+        if(errCount === 0){
+          errs = null;
+        }
         end(errs, results);
 
       }else{
@@ -217,9 +227,9 @@ parallel({
       }
     }
   ],
-  end(){
+  end(err, result){
     console.timeEnd('parallel')
-    console.log('all end');
+    console.log('all end', result);
   }
 });
 
