@@ -38,12 +38,7 @@ function parallel(opts){
   var i = 0;
   
   function loop(){
-    onProcess({
-      total: len,
-      started: i,
-      ended: count,
-      limit
-    })
+
     //console.log('loop', i, i - count, count);
     // if(i - count >= limit || i === len){
     //   console.log('return', i)
@@ -59,29 +54,41 @@ function parallel(opts){
     var _task = runingTasks[k];
 
     _task.abort = task(function(err, result){
+
       if(isAbortAll){
         return;
       }
       if(err){
-        runingTasks[k] = null;
-        delete(runingTasks[k]);
-        end(err);
-        return abortAll();
+        _task.err = err;
       }
+
       _task.result = result;
       _task.eventOnEnd.forEach(cb => {
         cb();
       })
       count = count + 1;
 
+      onProcess({
+        total: len,
+        started: i,
+        ended: count
+      });
+      
       //console.log('count', count);
       if(count === len){
-        
+
+        var errs = {};
         const results = {};
         keys.forEach(k => {
-          results[k] = runingTasks[k].result;
+          var v = runingTasks[k];
+          if(v.err){
+            errs[k] = v.err;
+          }else{
+            results[k] = v.result;
+          }
         })
-        end(null, results);
+        errs = Object.keys(errs).length === 0 ? null : errs;
+        end(errs, results);
 
       }else{
         if(i < len){
@@ -172,6 +179,9 @@ console.time('parallel')
 //====== test ======
 parallel({
   tasks: tasks2,
+  onProcess(e){
+    console.log('onProcess', e);
+  },
   // tasks: {
   //   fast(end){
   //     setTimeout(function(){
